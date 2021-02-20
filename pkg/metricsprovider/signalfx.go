@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -33,13 +34,14 @@ import (
 
 const (
 	// SignalFX Request Params
-	SignalFxClientName			   = "signalFx"
-	DefaultSignalFxEndpoint        = "https://api.pypl-us0.signalfx.com/v1/timeserieswindow"
+	SignalFxClientName     = "SignalFx"
+	DefaultSignalFxAddress = "https://api.signalfx.com"
+	signalFxMetricsAPI     = "/v1/timeserieswindow"
 	// SignalFx adds a suffix to hostnames if configured
 	signalFxHostNameSuffix = ".group.region.gcp.com"
 	signalFxHostFilter     = "host:"
-	// Org auth token
-	authToken              = ""
+	signalFxAddressKey     = "SIGNALFX_ADDRESS"
+	signalFxTokenKey       = "SIGNALFX_TOKEN"
 
 	// SignalFX Query Params
 	oneMinuteResolutionMs   = 60000
@@ -51,26 +53,50 @@ const (
 	httpClientTimeout = 55 * time.Second
 )
 
-var signalFxEndpoint string
+var (
+	signalFxAddress   string
+	signalFxAuthToken string
+)
 
-type signalFxClient struct {
-	client http.Client
+func init() {
+	var ok bool
+	signalFxAddress, ok = os.LookupEnv(signalFxAddressKey)
+	if !ok {
+		signalFxAddress = DefaultSignalFxAddress
+	}
+	signalFxAuthToken = os.Getenv(signalFxTokenKey)
+
 }
 
-func NewSignalFxClient(signalfxurl string) (watcher.FetcherClient, error) {
+type signalFxClient struct {
+	client          http.Client
+	authToken       string
+	signalFxAddress string
+}
+
+func NewSignalFxClient(opts MetricsProviderOpts) (watcher.FetcherClient, error) {
+	if opts.Name != SignalFxClientName {
+		return nil, fmt.Errorf("metric provider name should be %v, found %v", SignalFxClientName, opts.Name)
+	}
 	tlsConfig := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	if signalfxurl != "" {
-		signalFxEndpoint = signalfxurl
-	} else {
-		signalFxEndpoint = DefaultSignalFxEndpoint
+	var signalFxAddress string
+	if opts.Address != "" {
+		signalFxAddress = opts.Address
 	}
-
+	if opts.AuthToken != "" {
+		signalFxAuthToken = opts.AuthToken
+	}
+	if signalFxAuthToken == "" {
+		log.Fatalf("No auth token found to connect with SignalFx server")
+	}
 	return signalFxClient{client: http.Client{
 		Timeout:   httpClientTimeout,
-		Transport: tlsConfig}}, nil
+		Transport: tlsConfig},
+		authToken:       signalFxAuthToken,
+		signalFxAddress: signalFxAddress}, nil
 }
 
 func (s signalFxClient) Name() string {
@@ -83,12 +109,12 @@ func (s signalFxClient) FetchHostMetrics(host string, window *watcher.Window) ([
 	hostQuery := signalFxHostFilter + host + signalFxHostNameSuffix
 
 	for _, metric := range []string{cpuUtilizationMetric, memoryUtilizationMetric} {
-		uri, err := buildMetricURL(hostQuery, metric, window)
+		uri, err := s.buildMetricURL(hostQuery, metric, window)
 		if err != nil {
 			return metrics, err
 		}
 		req, _ := http.NewRequest(http.MethodGet, uri.String(), nil)
-		req.Header.Set("X-SF-Token", authToken)
+		req.Header.Set("X-SF-Token", s.authToken)
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := s.client.Do(req)
@@ -127,12 +153,12 @@ func (s signalFxClient) FetchHostMetrics(host string, window *watcher.Window) ([
 }
 
 // TODO(aqadeer): Fetching metrics for all hosts is not possible currently via timeserieswindow SignalFx API
-func (s signalFxClient) FetchAllHostsMetrics(window *watcher.Window) (map[string][]watcher.Metric, error) {
-	panic("Not yet implemented")
+func (s signalFxClient) FetchAllHostsMetrics(*watcher.Window) (map[string][]watcher.Metric, error) {
+	return nil, errors.New("This function is not yet implemented")
 }
 
-func buildMetricURL(host string, metric string, window *watcher.Window) (uri *url.URL, err error) {
-	uri, err = url.Parse(signalFxEndpoint)
+func (s signalFxClient) buildMetricURL(host string, metric string, window *watcher.Window) (uri *url.URL, err error) {
+	uri, err = url.Parse(s.signalFxAddress + signalFxMetricsAPI)
 	if err != nil {
 		return nil, err
 	}

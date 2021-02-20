@@ -19,6 +19,7 @@ package metricsprovider
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/paypal/load-watcher/pkg/watcher"
@@ -32,38 +33,63 @@ import (
 )
 
 const (
-	PromClientName = "prometheus"
-	DefaultPrometheusEndpoint = "http://prometheus-k8s.monitoring.svc.cluster.local:9090"
-	promStd        = "stddev_over_time"
-	promAvg        = "avg_over_time"
-	promCpuMetric  = "instance:node_cpu:ratio"
-	promMemMetric  = "instance:node_memory_utilisation:ratio"
-	allHosts       = "all"
-	hostMetricKey  = "instance"
+	PromClientName     = "Prometheus"
+	DefaultPromAddress = "http://prometheus-k8s:9090"
+	promHostKey        = "PROM_HOST"
+	promTokenKey       = "PROM_TOKEN"
+	promStd            = "stddev_over_time"
+	promAvg            = "avg_over_time"
+	promCpuMetric      = "instance:node_cpu:ratio"
+	promMemMetric      = "instance:node_memory_utilisation:ratio"
+	allHosts           = "all"
+	hostMetricKey      = "instance"
 )
+
+var (
+	promAddress string
+	promToken   string
+)
+
+func init() {
+	var ok bool
+	promAddress, ok = os.LookupEnv(promHostKey)
+	if !ok {
+		promAddress = DefaultPromAddress
+	}
+	promToken, ok = os.LookupEnv(promTokenKey)
+}
 
 type promClient struct {
 	client api.Client
 }
 
-
-func NewPromClient(promEndpoint string, promAuthToken string) (watcher.FetcherClient, error) {
+func NewPromClient(opts MetricsProviderOpts) (watcher.FetcherClient, error) {
+	if opts.Name != PromClientName {
+		return nil, fmt.Errorf("metric provider name should be %v, found %v", PromClientName, opts.Name)
+	}
 	var client api.Client
 	var err error
 
-	if promAuthToken == "" {
+	if opts.AuthToken != "" {
+		promToken = opts.AuthToken
+	}
+	if opts.Address != "" {
+		promAddress = opts.Address
+	}
+
+	if promToken != "" {
 		client, err = api.NewClient(api.Config{
-			Address: promEndpoint,
+			Address:      promAddress,
+			RoundTripper: config.NewBearerAuthRoundTripper(config.Secret(opts.AuthToken), api.DefaultRoundTripper),
 		})
 	} else {
 		client, err = api.NewClient(api.Config{
-			Address: promEndpoint,
-			RoundTripper: config.NewBearerAuthRoundTripper(config.Secret(promAuthToken), api.DefaultRoundTripper),
+			Address: promAddress,
 		})
 	}
 
 	if err != nil {
-		log.Errorf("Error creating prometheus client: %v\n", err)
+		log.Errorf("error creating prometheus client: %v", err)
 		return nil, err
 	}
 
@@ -84,7 +110,7 @@ func (s promClient) FetchHostMetrics(host string, window *watcher.Window) ([]wat
 			promResults, err := s.getPromResults(promQuery)
 
 			if err != nil {
-				log.Errorf("Error querying Prometheus for query %v: %v\n", promQuery, err)
+				log.Errorf("error querying Prometheus for query %v: %v\n", promQuery, err)
 				anyerr = err
 				continue
 			}
@@ -108,7 +134,7 @@ func (s promClient) FetchAllHostsMetrics(window *watcher.Window) (map[string][]w
 			promResults, err := s.getPromResults(promQuery)
 
 			if err != nil {
-				log.Errorf("Error querying Prometheus for query %v: %v\n", promQuery, err)
+				log.Errorf("error querying Prometheus for query %v: %v\n", promQuery, err)
 				anyerr = err
 				continue
 			}
@@ -148,7 +174,7 @@ func (s promClient) getPromResults(promQuery string) (model.Value, error) {
 	if len(warnings) > 0 {
 		log.Warnf("Warnings: %v\n", warnings)
 	}
-	log.Debugf("Result:\n%v\n", results)
+	log.Debugf("result:\n%v\n", results)
 
 	return results, nil
 }
@@ -176,12 +202,12 @@ func (s promClient) promResults2MetricMap(promresults model.Value, metric string
 	switch promresults.(type) {
 	case model.Vector:
 		for _, result := range promresults.(model.Vector) {
-			curMetric := watcher.Metric{metric, metric_type, operator, rollup, float64(result.Value*100)}
+			curMetric := watcher.Metric{metric, metric_type, operator, rollup, float64(result.Value * 100)}
 			curHost := string(result.Metric[hostMetricKey])
 			curMetrics[curHost] = append(curMetrics[curHost], curMetric)
 		}
 	default:
-		log.Errorf("Error: The Prometheus results should not be type: %v.\n", promresults.Type())
+		log.Errorf("error: The Prometheus results should not be type: %v.\n", promresults.Type())
 	}
 
 	return curMetrics

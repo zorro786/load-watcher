@@ -70,8 +70,8 @@ var FiveMinutesMetricsMap = map[string][]Metric{
 var _ FetcherClient = &testServerClient{}
 
 const (
-	FirstNode  = "worker-1"
-	SecondNode = "worker-2"
+	FirstNode            = "worker-1"
+	SecondNode           = "worker-2"
 	TestServerClientName = "TestServerClient"
 )
 

@@ -33,24 +33,24 @@ var w *Watcher
 
 func TestGetLatestWatcherMetrics(t *testing.T) {
 	var metrics *WatcherMetrics
-	metrics, err := w.GetLatestWatcherMetrics(FifteenMinutes)
+	metrics, err := w.getLatestWatcherMetrics(FifteenMinutes)
 	require.Nil(t, err)
 	assert.Equal(t, FifteenMinutesMetricsMap[FirstNode], metrics.Data.NodeMetricsMap[FirstNode].Metrics)
 	assert.Equal(t, FifteenMinutesMetricsMap[SecondNode], metrics.Data.NodeMetricsMap[SecondNode].Metrics)
 
-	metrics, err = w.GetLatestWatcherMetrics(TenMinutes)
+	metrics, err = w.getLatestWatcherMetrics(TenMinutes)
 	require.Nil(t, err)
 	assert.Equal(t, TenMinutesMetricsMap[FirstNode], metrics.Data.NodeMetricsMap[FirstNode].Metrics)
 	assert.Equal(t, TenMinutesMetricsMap[SecondNode], metrics.Data.NodeMetricsMap[SecondNode].Metrics)
 
-	metrics, err = w.GetLatestWatcherMetrics(FiveMinutes)
+	metrics, err = w.getLatestWatcherMetrics(FiveMinutes)
 	require.Nil(t, err)
 	assert.Equal(t, FiveMinutesMetricsMap[FirstNode], metrics.Data.NodeMetricsMap[FirstNode].Metrics)
 	assert.Equal(t, FiveMinutesMetricsMap[SecondNode], metrics.Data.NodeMetricsMap[SecondNode].Metrics)
 }
 
 func TestWatcherAPIAllHosts(t *testing.T) {
-	req, err := http.NewRequest("GET", baseUrl, nil)
+	req, err := http.NewRequest("GET", BaseUrl, nil)
 	require.Nil(t, err)
 
 	rr := httptest.NewRecorder()
@@ -59,7 +59,7 @@ func TestWatcherAPIAllHosts(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	expectedMetrics, err := w.GetLatestWatcherMetrics(FifteenMinutes)
+	expectedMetrics, err := w.getLatestWatcherMetrics(FifteenMinutes)
 	require.Nil(t, err)
 	data := Data{NodeMetricsMap: make(map[string]NodeMetrics)}
 	var watcherMetrics = &WatcherMetrics{Data: data}
@@ -69,7 +69,7 @@ func TestWatcherAPIAllHosts(t *testing.T) {
 }
 
 func TestWatcherAPISingleHost(t *testing.T) {
-	uri, _ := url.Parse(baseUrl)
+	uri, _ := url.Parse(BaseUrl)
 	q := uri.Query()
 	q.Set("host", FirstNode)
 	uri.RawQuery = q.Encode()
@@ -82,7 +82,7 @@ func TestWatcherAPISingleHost(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	expectedMetrics, err := w.GetLatestWatcherMetrics(FifteenMinutes)
+	expectedMetrics, err := w.getLatestWatcherMetrics(FifteenMinutes)
 	require.Nil(t, err)
 	data := Data{NodeMetricsMap: make(map[string]NodeMetrics)}
 	var watcherMetrics = &WatcherMetrics{Data: data}
@@ -93,7 +93,7 @@ func TestWatcherAPISingleHost(t *testing.T) {
 }
 
 func TestWatcherMetricsNotFound(t *testing.T) {
-	uri, _ := url.Parse(baseUrl)
+	uri, _ := url.Parse(BaseUrl)
 	q := uri.Query()
 	q.Set("host", "deadbeef")
 	uri.RawQuery = q.Encode()
@@ -111,7 +111,7 @@ func TestWatcherInternalServerError(t *testing.T) {
 	client := NewTestMetricsServerClient()
 	unstartedWatcher := NewWatcher(client)
 
-	req, err := http.NewRequest("GET", baseUrl, nil)
+	req, err := http.NewRequest("GET", BaseUrl, nil)
 	require.Nil(t, err)
 
 	rr := httptest.NewRecorder()

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 PayPal
+Copyright 2021 PayPal
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,22 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package metricsprovider
 
-import (
-	"github.com/paypal/load-watcher/pkg/metricsprovider"
-	"github.com/paypal/load-watcher/pkg/watcher"
-
-	log "github.com/sirupsen/logrus"
-)
-
-func main() {
-	client, err := metricsprovider.NewMetricsServerClient()
-	if err != nil {
-		log.Fatalf("unable to create new client: %v", err)
-	}
-
-	w := watcher.NewWatcher(client)
-	w.StartWatching(true)
-	select {}
+type MetricsProviderOpts struct {
+	Name      string
+	Address   string
+	AuthToken string
 }

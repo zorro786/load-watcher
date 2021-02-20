@@ -36,7 +36,7 @@ var (
 )
 
 const (
-	K8sClientName = "k8s"
+	K8sClientName = "KubernetesMetricsServer"
 	// env variable that provides path to kube config file, if deploying from outside K8s cluster
 	kubeConfig = "KUBE_CONFIG"
 )
@@ -54,7 +54,7 @@ type metricsServerClient struct {
 	// This client fetches node metrics from metric server
 	metricsClientSet *metricsv.Clientset
 	// This client fetches node capacity
-	coreClientSet    *kubernetes.Clientset
+	coreClientSet *kubernetes.Clientset
 }
 
 func NewMetricsServerClient() (watcher.FetcherClient, error) {
